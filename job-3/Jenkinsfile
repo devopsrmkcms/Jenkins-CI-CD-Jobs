@@ -1,0 +1,62 @@
+# Set up environment variables
+export ECR_REPO="820242909562.dkr.ecr.ap-south-1.amazonaws.com/docker"
+export REGION="ap-south-1"
+export APP_NAME="flask-python-app"
+export IMAGE_TAG="v$(date +%m%d%H%M%S)"
+
+echo "IMAGE_TAG: $IMAGE_TAG"
+echo
+
+cd ecr || exit 1
+echo "Current directory: $(pwd)"
+echo
+
+ls -ltrh
+echo
+
+# Corrected docker build command (use $VAR, not $(VAR))
+docker build -t ${APP_NAME}:${IMAGE_TAG} .
+
+echo
+docker image ls -a
+
+# Set AWS credentials (these are already set by Jenkins if you used Credentials Binding)
+export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+export AWS_DEFAULT_REGION=${REGION}
+echo
+aws ecr get-login-password --region ${REGION} | docker login --username AWS  --password-stdin ${ECR_REPO}
+
+if [ $? -eq 0 ]; then
+    echo "ECR login successful ✅"
+else
+    echo "ECR login failed ❌"
+    exit 1
+fi
+
+# Tag the image for ECR
+docker tag ${APP_NAME}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+
+# Push the image to ECR
+docker push ${ECR_REPO}:${IMAGE_TAG}
+
+# Run container with unique name (replace colon ':' with hyphen '-')
+CONTAINER_NAME="${APP_NAME}-${IMAGE_TAG}"
+
+# Optional: Remove existing container with the same name if exists (to avoid conflicts)
+if docker ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}$"; then
+  echo "Removing existing container ${CONTAINER_NAME}"
+  docker rm -f ${CONTAINER_NAME}
+fi
+
+# Run the new container with unique name
+docker run -d -p 5000:5000 --name ${CONTAINER_NAME} ${APP_NAME}:${IMAGE_TAG}
+
+echo
+docker container ls -a
+
+echo "Performing cleanup work on host"
+docker stop $(docker container ls  -aq)
+docker rm $(docker container ls  -aq)
+docker rmi $(docker images -aq) --force
+
