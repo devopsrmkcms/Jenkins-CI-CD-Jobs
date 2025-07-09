@@ -1,0 +1,46 @@
+#!/bin/bash
+set -e  # Exit immediately if a command exits with a non-zero status
+
+echo "Starting Docker build and push process..."
+echo "Current directory:"
+pwd
+echo
+
+# Move to your application directory
+cd app-httpd
+
+# Set Docker Hub details
+export REPO="rmk1988"
+export USERNAME="DOCKER_USER"
+export PASSWORD="DOCKER_PASSWORD"
+export APP_NAME="httpdfile"  # Change if you want to use a parameter
+export DOCKER_REPO="$REPO/$APP_NAME"
+export IMAGE_TAG="$(date '+%Y-%m-%d_%H-%M')"  # Uses Jenkins build number if available
+
+echo "Building Docker image: $DOCKER_REPO:$IMAGE_TAG"
+docker build -t "$DOCKER_REPO:$IMAGE_TAG" .
+
+echo
+echo "Listing Docker images..."
+docker image ls -a
+echo
+
+echo "Logging in to Docker Hub..."
+echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USER" --password-stdin docker.io
+
+echo
+echo "Pushing image to Docker Hub: $DOCKER_REPO:$IMAGE_TAG"
+docker push "$DOCKER_REPO:$IMAGE_TAG"
+
+echo
+echo "Image pushed successfully: $DOCKER_REPO:$IMAGE_TAG"
+
+# Optional: Clean up all Docker images (use with caution!)
+# echo "Cleaning up all Docker images..."
+# docker rmi $(docker images -a -q) --force || true
+
+echo "Build and push process completed."
+
+docker image ls -a
+
+ 
